@@ -2,6 +2,8 @@ package providers
 
 import (
 	"encoding/json"
+	"errors"
+	"kairo/internal/ai"
 	"kairo/internal/config"
 	"kairo/internal/crypto"
 	"kairo/internal/models"
@@ -176,6 +178,87 @@ func ListMyProviders(
 
 	json.NewEncoder(w).Encode(models.ListProvidersRes{
 		Providers: providers,
+	})
+}
+
+func ListModels(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if store.DB == nil {
+		w.WriteHeader(500)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "database not connected",
+		})
+
+		return
+	}
+
+	name := chi.URLParam(r, "name")
+
+	if name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "name is required",
+		})
+
+		return
+	}
+
+	baseURL, encryptedAPIKey, err := store.GetProviderByName(name)
+
+	if errors.Is(err, store.ErrProviderNotFound) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "provider not connected",
+		})
+
+		return
+	}
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "get provider failed",
+		})
+
+		return
+	}
+
+	apiKey, err := crypto.Decrypt(encryptedAPIKey)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "decrypt api_key failed",
+		})
+
+		return
+	}
+
+	models, err := ai.New(baseURL, apiKey).ListModels(r.Context())
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "provider request failed",
+		})
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"models": models,
 	})
 }
 

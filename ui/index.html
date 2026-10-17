@@ -12,6 +12,8 @@
 <body>
 	<img class="brand" src="logo.svg" alt="Kairo logo" draggable="false" />
 
+	<div class="menu-backdrop" id="menu-backdrop" hidden></div>
+
 	<aside class="sidebar">
 		<button type="button" class="sidebar__brand">
 			<img
@@ -22,6 +24,26 @@
 			/>
 			<span class="sidebar__brand-name">Kairo</span>
 		</button>
+
+		<button type="button" class="sidebar__new-chat">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M5 12h14"/><path d="M12 5v14"/>
+			</svg>
+			<span>New Chat</span>
+		</button>
+
+		<nav class="sidebar__chatnav" aria-label="Conversations">
+			<ul class="chat-list" id="chat-list"></ul>
+		</nav>
 
 		<button type="button" class="sidebar__settings">
 			<svg
@@ -147,6 +169,77 @@
 				</button>
 
 				<p class="connect__error settings-error" role="alert" hidden></p>
+			</div>
+		</main>
+	</section>
+
+	<section class="screen screen--chat" aria-label="Chat">
+		<main class="chat">
+			<div class="chat__messages" aria-live="polite">
+				<div class="chat__column">
+					<div class="chat__blank">No messages yet. Ask anything.</div>
+				</div>
+			</div>
+
+			<div class="composer-wrap">
+				<div class="menu" id="provider-menu" role="menu" hidden></div>
+
+				<div class="menu menu--model" id="model-menu" role="menu" hidden>
+					<div class="menu__search">
+						<input
+							class="menu__search-input"
+							id="model-search"
+							type="text"
+							placeholder="Search models"
+							autocomplete="off"
+							spellcheck="false"
+						/>
+					</div>
+					<div class="menu__list" id="model-menu-list"></div>
+				</div>
+
+				<form class="composer" id="chat-composer" autocomplete="off">
+					<textarea
+						class="composer__textarea"
+						id="chat-message"
+						placeholder="Ask anything…"
+						rows="1"
+					></textarea>
+
+					<div class="composer__toolbar">
+						<div class="composer__tools">
+							<button
+								type="button"
+								class="pill"
+								id="provider-pill"
+								aria-haspopup="menu"
+								aria-expanded="false"
+								aria-label="Selected provider"
+							>
+								<span class="pill__icon" aria-hidden="true"></span>
+								<span class="pill__label">Provider</span>
+							</button>
+
+							<button
+								type="button"
+								class="pill"
+								id="model-pill"
+								aria-haspopup="menu"
+								aria-expanded="false"
+								aria-label="Selected model"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+								<span class="pill__label" id="model-pill-label">Model</span>
+							</button>
+						</div>
+
+						<button type="submit" class="send-btn" id="chat-send" aria-label="Send message" disabled>
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+						</button>
+					</div>
+
+					<p class="chat__error" role="alert" hidden></p>
+				</form>
 			</div>
 		</main>
 	</section>

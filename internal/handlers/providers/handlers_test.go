@@ -87,6 +87,74 @@ func TestConnectNewProvider(t *testing.T) {
 	}
 }
 
+// modelsViaRouter performs a GET models request through a real chi router.
+func modelsViaRouter(t *testing.T, name string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	router := chi.NewRouter()
+
+	router.Get("/providers/{name}/models", ListModels)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/providers/"+name+"/models",
+		nil,
+	)
+
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	return rec
+}
+
+func TestListModels(t *testing.T) {
+	t.Setenv(crypto.KeyEnvVar, strings.Repeat("ab", 32))
+
+	setupTestDB(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			t.Errorf("path = %q, want /models", r.URL.Path)
+		}
+
+		if r.Header.Get("Authorization") != "Bearer fake-api-key" {
+			t.Errorf("authorization = %q", r.Header.Get("Authorization"))
+		}
+
+		w.Write([]byte(`{"data": [{"id": "model-a"}, {"id": "model-b"}]}`))
+	}))
+
+	defer server.Close()
+
+	encryptedKey, err := crypto.Encrypt("fake-api-key")
+
+	if err != nil {
+		t.Fatalf("encrypt key: %v", err)
+	}
+
+	if _, err = store.CreateProvider("fake", server.URL, encryptedKey); err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+
+	rec := modelsViaRouter(t, "fake")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), `"models":["model-a","model-b"]`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+
+	// Unknown provider.
+	rec = modelsViaRouter(t, "missing")
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown provider status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestConnectNewProviderDuplicateBaseURL(t *testing.T) {
 	t.Setenv(crypto.KeyEnvVar, strings.Repeat("cd", 32))
 

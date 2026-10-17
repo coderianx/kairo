@@ -14,6 +14,7 @@
 	--color-btn-text-disabled: #5c6670;
 	--color-focus: #6ea8fe;
 	--color-input-bg: #0f1318;
+	--color-user-bubble: #1e2630;
 	--color-danger: #ff7b72;
 
 	--brand-groq: #f55036;
@@ -29,6 +30,12 @@
 
 * {
 	box-sizing: border-box;
+}
+
+/* The HTML hidden attribute must always win over class display styles
+   (e.g. .menu--model display:flex would otherwise override it). */
+[hidden] {
+	display: none !important;
 }
 
 html,
@@ -81,7 +88,8 @@ body.screen-apikey .brand {
 }
 
 body.screen-dashboard .brand,
-body.screen-settings .brand {
+body.screen-settings .brand,
+body.screen-chat .brand {
 	opacity: 0;
 }
 
@@ -118,7 +126,8 @@ body.screen-settings .brand {
 
 /* Dashboard and settings sit next to the shared sidebar. */
 .screen--dashboard,
-.screen--settings {
+.screen--settings,
+.screen--chat {
 	left: var(--sidebar-width);
 }
 
@@ -136,7 +145,8 @@ body.screen-settings .brand {
 body.screen-providers .screen--welcome,
 body.screen-apikey .screen--welcome,
 body.screen-dashboard .screen--welcome,
-body.screen-settings .screen--welcome {
+body.screen-settings .screen--welcome,
+body.screen-chat .screen--welcome {
 	opacity: 0;
 	visibility: hidden;
 }
@@ -144,7 +154,8 @@ body.screen-settings .screen--welcome {
 body.screen-providers .screen--providers,
 body.screen-apikey .screen--apikey,
 body.screen-dashboard .screen--dashboard,
-body.screen-settings .screen--settings {
+body.screen-settings .screen--settings,
+body.screen-chat .screen--chat {
 	opacity: 1;
 	visibility: visible;
 	transition:
@@ -172,7 +183,8 @@ body.screen-settings .screen--settings {
 }
 
 body.screen-dashboard .sidebar,
-body.screen-settings .sidebar {
+body.screen-settings .sidebar,
+body.screen-chat .sidebar {
 	opacity: 1;
 	visibility: visible;
 	transition:
@@ -214,6 +226,105 @@ body.screen-settings .sidebar {
 	height: 22px;
 	filter: invert(1);
 	pointer-events: none;
+}
+
+/* New chat: dashed quiet button above the conversation list. */
+.sidebar__new-chat {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 38px;
+	padding: 0 12px;
+	background: transparent;
+	border: 1px dashed var(--color-border);
+	border-radius: 8px;
+	color: var(--color-text-muted);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease,
+		border-color 150ms ease;
+}
+
+.sidebar__new-chat:hover {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-hover);
+	color: var(--color-text);
+}
+
+.sidebar__new-chat:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.sidebar__new-chat svg {
+	width: 16px;
+	height: 16px;
+	flex: none;
+}
+
+.sidebar__chatnav {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.chat-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-list__item {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: block;
+	width: 100%;
+	padding: 9px 12px;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--color-text-muted);
+	font-family: inherit;
+	font-size: 14px;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease;
+}
+
+.chat-list__item:hover {
+	background: var(--color-surface-hover);
+	color: var(--color-text);
+}
+
+.chat-list__item.active {
+	background: var(--color-surface-selected);
+	color: var(--color-text);
+}
+
+.chat-list__item:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.chat-list__empty {
+	padding: 9px 12px;
+	font-size: 14px;
+	color: var(--color-text-muted);
 }
 
 /* Settings: pinned to the bottom of the sidebar as a quiet ghost button. */
@@ -588,14 +699,61 @@ body.screen-settings .sidebar {
 .connected__name {
 	font-size: 15px;
 	font-weight: 600;
+	flex: none;
 }
 
 .connected__url {
+	flex: 1;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: 13px;
 	color: var(--color-text-muted);
+}
+
+/* Delete: quiet trash button that turns red when armed for confirmation. */
+.connected__delete {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	flex: none;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--color-text-muted);
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease;
+}
+
+.connected__delete svg {
+	width: 16px;
+	height: 16px;
+}
+
+.connected__delete:hover {
+	background: rgba(255, 123, 114, 0.08);
+	color: var(--color-danger);
+}
+
+.connected__delete:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.connected__delete.armed {
+	background: rgba(255, 123, 114, 0.14);
+	color: var(--color-danger);
+}
+
+.connected__delete.armed:hover {
+	background: rgba(255, 123, 114, 0.24);
 }
 
 .connected__empty {
@@ -611,6 +769,397 @@ body.screen-settings .sidebar {
 	max-width: 420px;
 }
 
+/* Chat screen. */
+.chat {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+}
+
+.chat__messages {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 24px;
+	display: flex;
+	justify-content: center;
+	user-select: text;
+}
+
+.chat__column {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	width: 100%;
+	max-width: 760px;
+
+	/* The column holds selectable chat text; drag regions swallow mouse
+	   events, so chat text must be no-drag for selection to work. */
+	-webkit-app-region: no-drag;
+}
+
+.chat__blank {
+	margin: auto;
+	color: var(--color-text-muted);
+	font-size: 15px;
+	text-align: center;
+}
+
+.msg {
+	font-size: 15px;
+	line-height: 1.6;
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--color-text);
+}
+
+/* User messages: soft rounded bubble aligned right (chatgpt.com style). */
+.msg--user {
+	align-self: flex-end;
+	max-width: 75%;
+	background: var(--color-user-bubble);
+	border-radius: 18px;
+	padding: 10px 16px;
+}
+
+/* AI messages: plain text on the left with a small brand avatar,
+   no bubble. */
+.msg--assistant {
+	align-self: stretch;
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+}
+
+.msg__avatar {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: 50%;
+}
+
+.msg__avatar img {
+	width: 16px;
+	height: 16px;
+	filter: invert(1);
+	pointer-events: none;
+}
+
+.msg__text {
+	flex: 1;
+	min-width: 0;
+}
+
+/* Composer: rounded card with inline toolbar, styled after asking cards. */
+.composer-wrap {
+	position: relative;
+	flex: none;
+	width: 100%;
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 0 24px 20px;
+}
+
+.composer {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px 16px 12px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: 24px;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.composer:focus-within {
+	border-color: var(--color-border-hover);
+}
+
+.composer__textarea {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	width: 100%;
+	display: block;
+	padding: 4px 8px;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 15px;
+	line-height: 1.5;
+	resize: none;
+	min-height: 30px;
+	max-height: 160px;
+	overflow-y: auto;
+	user-select: text;
+}
+
+.composer__textarea::placeholder {
+	color: var(--color-text-muted);
+}
+
+.composer__textarea:focus {
+	outline: none;
+}
+
+.composer__textarea:disabled {
+	opacity: 0.5;
+}
+
+.composer__toolbar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.composer__tools {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex: 1;
+	min-width: 0;
+}
+
+.pill {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	height: 36px;
+	padding: 0 14px;
+	background: transparent;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease;
+}
+
+.pill:hover {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-hover);
+}
+
+.pill:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.pill svg {
+	width: 16px;
+	height: 16px;
+	flex: none;
+}
+
+.pill__icon {
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+	flex: none;
+}
+
+.pill__icon svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.pill__label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.send-btn {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	flex: none;
+	padding: 0;
+	background: var(--color-btn-bg);
+	border: 0;
+	border-radius: 50%;
+	color: var(--color-btn-text);
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		transform 150ms ease;
+}
+
+.send-btn:not(:disabled):hover {
+	background: var(--color-btn-bg-hover);
+}
+
+.send-btn:not(:disabled):active {
+	transform: translateY(1px);
+}
+
+.send-btn:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.send-btn:disabled {
+	background: var(--color-btn-bg-disabled);
+	color: var(--color-btn-text-disabled);
+	cursor: not-allowed;
+}
+
+.send-btn svg {
+	width: 18px;
+	height: 18px;
+}
+
+/* Floating provider menu above the composer. */
+.menu {
+	position: absolute;
+	bottom: calc(100% + 4px);
+	left: 40px;
+	min-width: 240px;
+	padding: 6px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: 16px;
+	box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+	z-index: 30;
+}
+
+/* Invisible layer under the menus but above everything else; clicking it
+   closes open menus even over drag regions, whose clicks never reach the
+   DOM. */
+.menu-backdrop {
+	position: fixed;
+	inset: 0;
+	background: transparent;
+	z-index: 20;
+	-webkit-app-region: no-drag;
+}
+
+/* Model picker: search box on top, scrollable list below. */
+.menu--model {
+	display: flex;
+	flex-direction: column;
+	width: 320px;
+	padding: 0;
+}
+
+.menu__search {
+	flex: none;
+	padding: 8px 8px 0;
+}
+
+.menu__search-input {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: block;
+	width: 100%;
+	min-height: 34px;
+	padding: 0 10px;
+	background: var(--color-input-bg);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 14px;
+	user-select: text;
+}
+
+.menu__search-input::placeholder {
+	color: var(--color-text-muted);
+}
+
+.menu__search-input:focus {
+	outline: none;
+	border-color: var(--color-focus);
+}
+
+.menu__search-input:hover {
+	border-color: var(--color-border-hover);
+}
+
+.menu__list {
+	max-height: 280px;
+	min-height: 60px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px;
+}
+
+.menu__empty {
+	padding: 10px 12px;
+	font-size: 14px;
+	color: var(--color-text-muted);
+}
+
+.menu__item {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 10px 12px;
+	background: transparent;
+	border: 0;
+	border-radius: 10px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 150ms ease;
+}
+
+.menu__item:hover {
+	background: var(--color-surface-hover);
+}
+
+.menu__item:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: -2px;
+}
+
+.menu__item-icon {
+	display: inline-flex;
+	width: 18px;
+	height: 18px;
+	flex: none;
+}
+
+.menu__item-icon svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.chat__error {
+	margin: 2px 0 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: var(--color-danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.brand,
 	.screen,
@@ -618,8 +1167,15 @@ body.screen-settings .sidebar {
 	.provider-card,
 	.btn,
 	.sidebar__brand,
+	.sidebar__new-chat,
 	.sidebar__settings,
-	.connect__input {
+	.chat-list__item,
+	.connect__input,
+	.connected__delete,
+	.icon-btn,
+	.pill,
+	.send-btn,
+	.menu__item {
 		transition: none;
 	}
 }

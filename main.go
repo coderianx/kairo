@@ -2,6 +2,7 @@ package main
 
 import (
 	"kairo/internal/config"
+	"kairo/internal/handlers/chats"
 	"kairo/internal/handlers/providers"
 	"kairo/internal/store"
 	"log"
@@ -44,7 +45,15 @@ func main() {
 	router.Route("/providers", func(r chi.Router) {
 		r.Post("/", providers.ConnectNewProvider)
 		r.Get("/", providers.ListMyProviders)
+		r.Get("/{name}/models", providers.ListModels)
 		r.Delete("/{id}", providers.DeleteProvider)
+	})
+
+	router.Route("/chats", func(r chi.Router) {
+		r.Post("/", chats.CreateChat)
+		r.Get("/", chats.ListChats)
+		r.Post("/{id}/messages", chats.SendMessage)
+		r.Get("/{id}/messages", chats.GetMessages)
 	})
 
 	err = http.ListenAndServe(":8080", router)
