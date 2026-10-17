@@ -1,0 +1,625 @@
+:root {
+	--color-bg: #0b0d10;
+	--color-surface: #12161b;
+	--color-surface-hover: #161b22;
+	--color-surface-selected: #101720;
+	--color-border: #232a32;
+	--color-border-hover: #39424d;
+	--color-text: #f2f5f7;
+	--color-text-muted: #9aa3ad;
+	--color-btn-bg: #f2f5f7;
+	--color-btn-bg-hover: #dde4ea;
+	--color-btn-bg-disabled: #1d232b;
+	--color-btn-text: #0b0d10;
+	--color-btn-text-disabled: #5c6670;
+	--color-focus: #6ea8fe;
+	--color-input-bg: #0f1318;
+	--color-danger: #ff7b72;
+
+	--brand-groq: #f55036;
+	--brand-openrouter: #94a3b8;
+
+	--radius-card: 12px;
+	--sidebar-width: 220px;
+
+	--font-family:
+		system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+		sans-serif;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	position: relative;
+	overflow: hidden;
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-family);
+	-webkit-font-smoothing: antialiased;
+	user-select: none;
+
+	/* The window is frameless; let it be moved by dragging anywhere except
+	   interactive controls. */
+	-webkit-app-region: drag;
+}
+
+/* Brand logo: centered on the welcome screen, then settles into the
+   top-left corner; it fades out once the sidebar is shown. */
+.brand {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 112px;
+	height: 112px;
+	translate: -50% -50%;
+	filter: invert(1);
+	pointer-events: none;
+	transition:
+		top 300ms ease,
+		left 300ms ease,
+		width 300ms ease,
+		height 300ms ease,
+		translate 300ms ease,
+		opacity 250ms ease;
+}
+
+body.screen-providers .brand,
+body.screen-apikey .brand {
+	top: 24px;
+	left: 24px;
+	translate: none;
+	width: 40px;
+	height: 40px;
+}
+
+body.screen-dashboard .brand,
+body.screen-settings .brand {
+	opacity: 0;
+}
+
+/* Screens are hidden by default; each body state reveals exactly one. */
+.screen {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity 250ms ease,
+		visibility 0s linear 250ms;
+}
+
+.screen--welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	/* Keeps the CTA clear of the absolutely centered brand logo:
+	   56px (logo half) + 40px (gap) + 22px (button half), doubled because
+	   padding-top shifts centered content by half its own value. */
+	padding-top: 236px;
+	opacity: 1;
+	visibility: visible;
+}
+
+.screen--providers,
+.screen--apikey {
+	display: block;
+	overflow-y: auto;
+	padding: 120px 48px 48px;
+}
+
+/* Dashboard and settings sit next to the shared sidebar. */
+.screen--dashboard,
+.screen--settings {
+	left: var(--sidebar-width);
+}
+
+.screen--dashboard {
+	display: grid;
+	place-items: center;
+}
+
+.screen--settings {
+	display: block;
+	overflow-y: auto;
+	padding: 48px;
+}
+
+body.screen-providers .screen--welcome,
+body.screen-apikey .screen--welcome,
+body.screen-dashboard .screen--welcome,
+body.screen-settings .screen--welcome {
+	opacity: 0;
+	visibility: hidden;
+}
+
+body.screen-providers .screen--providers,
+body.screen-apikey .screen--apikey,
+body.screen-dashboard .screen--dashboard,
+body.screen-settings .screen--settings {
+	opacity: 1;
+	visibility: visible;
+	transition:
+		opacity 250ms ease 150ms,
+		visibility 0s linear 150ms;
+}
+
+/* Shared sidebar: shown on the dashboard and settings screens. */
+.sidebar {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: var(--sidebar-width);
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 24px 16px;
+	border-right: 1px solid var(--color-border);
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity 250ms ease,
+		visibility 0s linear 250ms;
+}
+
+body.screen-dashboard .sidebar,
+body.screen-settings .sidebar {
+	opacity: 1;
+	visibility: visible;
+	transition:
+		opacity 250ms ease 150ms,
+		visibility 0s linear 150ms;
+}
+
+.sidebar__brand {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 4px 6px;
+	margin: -4px -6px;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	cursor: pointer;
+	transition: background-color 150ms ease;
+}
+
+.sidebar__brand:hover {
+	background: var(--color-surface-hover);
+}
+
+.sidebar__brand:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.sidebar__brand-logo {
+	width: 22px;
+	height: 22px;
+	filter: invert(1);
+	pointer-events: none;
+}
+
+/* Settings: pinned to the bottom of the sidebar as a quiet ghost button. */
+.sidebar__settings {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: auto;
+	width: 100%;
+	min-height: 40px;
+	padding: 0 12px;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--color-text-muted);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease;
+}
+
+.sidebar__settings:hover {
+	background: var(--color-surface-hover);
+	color: var(--color-text);
+}
+
+.sidebar__settings:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.sidebar__settings svg {
+	width: 18px;
+	height: 18px;
+	flex: none;
+}
+
+.providers {
+	max-width: 720px;
+	margin: 0 auto;
+}
+
+.providers__title {
+	margin: 0;
+	font-size: 24px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.providers__subtitle {
+	margin: 8px 0 32px;
+	color: var(--color-text-muted);
+	font-size: 15px;
+}
+
+.providers__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 16px;
+}
+
+.providers__actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 24px;
+}
+
+.provider-card {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 20px;
+	text-align: left;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-card);
+	color: var(--color-text);
+	font-family: inherit;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease,
+		transform 150ms ease;
+}
+
+.provider-card:hover {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-hover);
+}
+
+.provider-card:active {
+	transform: translateY(1px);
+}
+
+.provider-card:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.provider-card.selected {
+	background: var(--color-surface-selected);
+	border-color: var(--color-focus);
+}
+
+.provider-card__logo {
+	width: 28px;
+	height: 28px;
+}
+
+.provider-card__logo svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.provider-card__logo--groq {
+	color: var(--brand-groq);
+}
+
+.provider-card__logo--openrouter {
+	color: var(--brand-openrouter);
+}
+
+.provider-card__name {
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.provider-card__desc {
+	font-size: 14px;
+	line-height: 1.4;
+	color: var(--color-text-muted);
+}
+
+/* Shared primary button styles. */
+.btn {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	padding: 0 26px;
+	border: 0;
+	border-radius: 10px;
+	background: var(--color-btn-bg);
+	color: var(--color-btn-text);
+	font-family: inherit;
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	cursor: pointer;
+	transition:
+		background-color 150ms ease,
+		transform 150ms ease;
+}
+
+.btn:not(:disabled):hover {
+	background: var(--color-btn-bg-hover);
+}
+
+.btn:not(:disabled):active {
+	transform: translateY(1px);
+}
+
+.btn:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.btn:disabled {
+	background: var(--color-btn-bg-disabled);
+	color: var(--color-btn-text-disabled);
+	cursor: not-allowed;
+}
+
+.btn-arrow {
+	font-weight: 500;
+}
+
+/* API key screen. */
+.connect {
+	max-width: 420px;
+	margin: 0 auto;
+}
+
+.provider-hero {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 14px;
+	margin-bottom: 32px;
+}
+
+.provider-hero__logo {
+	display: inline-flex;
+	width: 40px;
+	height: 40px;
+}
+
+.provider-hero__logo svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.provider-hero__name {
+	font-size: 20px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.connect__label {
+	display: block;
+	margin-bottom: 8px;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+.connect__input {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	display: block;
+	width: 100%;
+	min-height: 44px;
+	padding: 0 14px;
+	background: var(--color-input-bg);
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	color: var(--color-text);
+	font-family: inherit;
+	font-size: 15px;
+	user-select: text;
+	transition:
+		border-color 150ms ease,
+		box-shadow 150ms ease;
+}
+
+.connect__input::placeholder {
+	color: var(--color-btn-text-disabled);
+}
+
+.connect__input:hover {
+	border-color: var(--color-border-hover);
+}
+
+.connect__input:focus {
+	outline: none;
+	border-color: var(--color-focus);
+	box-shadow: 0 0 0 3px rgba(110, 168, 252, 0.25);
+}
+
+.connect__apply {
+	margin-top: 16px;
+	width: 100%;
+	justify-content: center;
+}
+
+.connect__error {
+	margin: 12px 0 0;
+	font-size: 14px;
+	line-height: 1.4;
+	color: var(--color-danger);
+}
+
+/* Dashboard: centered hero in the content area next to the sidebar. */
+.dashboard {
+	display: grid;
+	place-items: center;
+	height: 100%;
+}
+
+.dashboard__hero {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+}
+
+.dashboard__logo {
+	width: 96px;
+	height: 96px;
+	filter: invert(1);
+	pointer-events: none;
+}
+
+.dashboard__tagline {
+	margin: 0;
+	color: var(--color-text-muted);
+	font-size: 14px;
+	letter-spacing: 0.02em;
+}
+
+/* Settings screen. */
+.settings {
+	max-width: 720px;
+	margin: 0 auto;
+}
+
+.settings__title {
+	margin: 0;
+	font-size: 24px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.settings__heading {
+	margin: 32px 0 12px;
+	font-size: 14px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--color-text-muted);
+}
+
+.settings__grid {
+	margin-bottom: 8px;
+}
+
+.connected {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.connected__item {
+	-webkit-app-region: no-drag;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 16px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-card);
+}
+
+.connected__logo {
+	display: inline-flex;
+	width: 22px;
+	height: 22px;
+	flex: none;
+}
+
+.connected__logo svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.connected__logo--generic {
+	align-items: center;
+	justify-content: center;
+	background: var(--color-border-hover);
+	border-radius: 50%;
+	color: var(--color-bg);
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.connected__name {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.connected__url {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+	color: var(--color-text-muted);
+}
+
+.connected__empty {
+	padding: 14px 16px;
+	font-size: 14px;
+	color: var(--color-text-muted);
+	border: 1px dashed var(--color-border);
+	border-radius: var(--radius-card);
+}
+
+.settings__connect {
+	margin-top: 20px;
+	max-width: 420px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.brand,
+	.screen,
+	.sidebar,
+	.provider-card,
+	.btn,
+	.sidebar__brand,
+	.sidebar__settings,
+	.connect__input {
+		transition: none;
+	}
+}

@@ -1,0 +1,36 @@
+{
+	"name": "kairo",
+	"version": "0.1.0",
+	"private": true,
+	"main": "app/main.js",
+	"scripts": {
+		"build:backend": "go build -o kairo-server .",
+		"start": "electron .",
+		"dist": "npm run build:backend && electron-builder --linux AppImage"
+	},
+	"devDependencies": {
+		"electron": "^44.9.0",
+		"electron-builder": "^26.15.3"
+	},
+	"build": {
+		"appId": "dev.kairo.app",
+		"productName": "Kairo",
+		"files": [
+			"app/**/*",
+			"ui/**/*",
+			"package.json"
+		],
+		"extraResources": [
+			{
+				"from": "kairo-server",
+				"to": "kairo-server"
+			}
+		],
+		"linux": {
+			"target": [
+				"AppImage"
+			],
+			"category": "Development"
+		}
+	}
+}

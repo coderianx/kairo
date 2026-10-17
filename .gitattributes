@@ -1,0 +1,7 @@
+# Keep the GitHub languages bar focused on the real code (Go).
+# HTML/CSS are marked generated so they are excluded from the statistics.
+*.html linguist-generated=true
+*.css linguist-generated=true
+*.svg linguist-generated=true
+package.json linguist-generated=true
+package-lock.json linguist-generated=true

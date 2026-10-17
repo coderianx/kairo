@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta
+		http-equiv="Content-Security-Policy"
+		content="default-src 'self'; style-src 'self'; img-src 'self'"
+	/>
+	<title>Kairo</title>
+	<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+	<img class="brand" src="logo.svg" alt="Kairo logo" draggable="false" />
+
+	<aside class="sidebar">
+		<button type="button" class="sidebar__brand">
+			<img
+				class="sidebar__brand-logo"
+				src="logo.svg"
+				alt=""
+				draggable="false"
+			/>
+			<span class="sidebar__brand-name">Kairo</span>
+		</button>
+
+		<button type="button" class="sidebar__settings">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+				<circle cx="12" cy="12" r="3"/>
+			</svg>
+			<span>Settings</span>
+		</button>
+	</aside>
+
+	<section class="screen screen--welcome" aria-label="Welcome">
+		<button type="button" class="btn welcome__cta">
+			Get Started
+			<span class="btn-arrow" aria-hidden="true">&rarr;</span>
+		</button>
+	</section>
+
+	<section class="screen screen--providers" aria-label="Choose a provider">
+		<div class="providers">
+			<h1 class="providers__title">Choose a provider</h1>
+			<p class="providers__subtitle">Connect an AI provider to continue.</p>
+
+			<div class="providers__grid" role="group" aria-label="Available providers">
+				<button type="button" class="provider-card" data-provider="groq" aria-pressed="false">
+					<span class="provider-card__logo provider-card__logo--groq" aria-hidden="true">
+						<svg fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Groq</title><path d="M12.036 2c-3.853-.035-7 3-7.036 6.781-.035 3.782 3.055 6.872 6.908 6.907h2.42v-2.566h-2.292c-2.407.028-4.38-1.866-4.408-4.23-.029-2.362 1.901-4.298 4.308-4.326h.1c2.407 0 4.358 1.915 4.365 4.278v6.305c0 2.342-1.944 4.25-4.323 4.279a4.375 4.375 0 01-3.033-1.252l-1.851 1.818A7 7 0 0012.029 22h.092c3.803-.056 6.858-3.083 6.879-6.816v-6.5C18.907 4.963 15.817 2 12.036 2z"></path></svg>
+					</span>
+					<span class="provider-card__name">Groq</span>
+					<span class="provider-card__desc">Fast LLM inference API.</span>
+				</button>
+
+				<button type="button" class="provider-card" data-provider="openrouter" aria-pressed="false">
+					<span class="provider-card__logo provider-card__logo--openrouter" aria-hidden="true">
+						<svg fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>OpenRouter</title><path d="M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z"></path></svg>
+					</span>
+					<span class="provider-card__name">OpenRouter</span>
+					<span class="provider-card__desc">One API for hundreds of models.</span>
+				</button>
+			</div>
+
+			<div class="providers__actions">
+				<button type="button" class="btn providers__continue" disabled>
+					Continue
+					<span class="btn-arrow" aria-hidden="true">&rarr;</span>
+				</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="screen screen--apikey" aria-label="Connect provider">
+		<div class="connect">
+			<div class="provider-hero">
+				<span class="provider-hero__logo" aria-hidden="true"></span>
+				<span class="provider-hero__name"></span>
+			</div>
+
+			<label class="connect__label" for="api-key">API key</label>
+			<input
+				class="connect__input"
+				id="api-key"
+				name="api-key"
+				type="password"
+				autocomplete="off"
+				spellcheck="false"
+				placeholder="Paste your API key"
+			/>
+
+			<button type="button" class="btn connect__apply" hidden>
+				Apply
+			</button>
+
+			<p class="connect__error" role="alert" hidden></p>
+		</div>
+	</section>
+
+	<section class="screen screen--dashboard" aria-label="Dashboard">
+		<main class="dashboard">
+			<div class="dashboard__hero">
+				<img
+					class="dashboard__logo"
+					src="logo.svg"
+					alt="Kairo logo"
+					draggable="false"
+				/>
+				<p class="dashboard__tagline">Kairo Cares About Your Privacy</p>
+			</div>
+		</main>
+	</section>
+
+	<section class="screen screen--settings" aria-label="Settings">
+		<main class="settings">
+			<h1 class="settings__title">Settings</h1>
+
+			<h2 class="settings__heading">Connected providers</h2>
+			<ul class="connected"></ul>
+
+			<h2 class="settings__heading">Connect a new provider</h2>
+			<div class="providers__grid settings__grid" role="group" aria-label="Available providers"></div>
+
+			<div class="settings__connect" hidden>
+				<label class="connect__label" for="settings-api-key">API key</label>
+				<input
+					class="connect__input"
+					id="settings-api-key"
+					name="settings-api-key"
+					type="password"
+					autocomplete="off"
+					spellcheck="false"
+					placeholder="Paste your API key"
+				/>
+
+				<button type="button" class="btn connect__apply settings-apply" hidden>
+					Apply
+				</button>
+
+				<p class="connect__error settings-error" role="alert" hidden></p>
+			</div>
+		</main>
+	</section>
+
+	<script src="app.js"></script>
+</body>
+</html>
