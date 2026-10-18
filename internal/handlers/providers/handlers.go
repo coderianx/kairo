@@ -69,6 +69,10 @@ func ConnectNewProvider(
 		req.BaseURL = config.GroqBaseURL
 	case "openrouter":
 		req.BaseURL = config.OpenrouterBaseURL
+	case "ollama":
+		req.BaseURL = config.OllamaBaseURL
+	case "gemini":
+		req.BaseURL = config.GeminiBaseURL
 	}
 
 	if req.BaseURL == "" {
@@ -81,7 +85,8 @@ func ConnectNewProvider(
 		return
 	}
 
-	if req.APIKey == "" {
+	// Ollama runs locally and needs no API key; every other provider does.
+	if req.APIKey == "" && req.Name != "ollama" {
 		w.WriteHeader(http.StatusBadRequest)
 
 		json.NewEncoder(w).Encode(map[string]any{

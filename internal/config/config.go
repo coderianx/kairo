@@ -8,6 +8,8 @@ import (
 var (
 	GroqBaseURL       string = "https://api.groq.com/openai/v1"
 	OpenrouterBaseURL string = "https://openrouter.ai/api/v1"
+	OllamaBaseURL     string = "http://localhost:11434/v1"
+	GeminiBaseURL     string = "https://generativelanguage.googleapis.com/v1beta"
 )
 
 var kairoPath string

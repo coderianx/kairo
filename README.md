@@ -5,7 +5,7 @@
 
 ---
 
-Kairo connects Groq, OpenRouter and any **OpenAI-compatible provider** to a single sleek desktop app. Your keys, history and model choices all stay **on your own machine** — no cloud, no telemetry.
+Kairo connects Groq, OpenRouter, Ollama, Gemini and any **OpenAI-compatible provider** to a single sleek desktop app. Your keys, history and model choices all stay **on your own machine** — no cloud, no telemetry.
 
 ## Features
 
@@ -45,10 +45,27 @@ Output: `dist/Kairo-<version>.AppImage` — the Go backend is embedded in the pa
 
 ## Usage
 
-1. **Settings → connect a provider:** pick the Groq or OpenRouter card, paste your API key and hit Apply — the key is encrypted and stored in your local database.
+1. **Settings → connect a provider:** pick a card and hit Apply — for Groq/OpenRouter/Gemini paste your API key (encrypted and stored in your local database); **Ollama needs no key**, it connects to your local instance straight away.
 2. Open a conversation with **New Chat**; the sidebar name is derived automatically from your first message.
 3. Pick a **provider and model** from the composer pills; models are fetched from your provider, searchable as you type.
 4. Type and hit **Enter** — every answer is produced with the last 15 messages of the conversation as context.
+
+## Allowed Providers
+
+These providers are built in — the base URL is resolved server-side from the provider name, so you just pick the matching card and connect:
+
+| Provider | Base URL | API key |
+| --- | --- | --- |
+| <img src="ui/providers/groq.svg" width="22" alt="" align="top"> **Groq** | `https://api.groq.com/openai/v1` | Required |
+| <img src="ui/providers/openrouter.svg" width="22" alt="" align="top"> **OpenRouter** | `https://openrouter.ai/api/v1` | Required |
+| <img src="ui/providers/ollama.svg" width="22" alt="" align="top"> **Ollama** | `http://localhost:11434/v1` | Not needed — local |
+| <img src="ui/providers/gemini.svg" width="22" alt="" align="top"> **Gemini** | `https://generativelanguage.googleapis.com/v1beta` | Required |
+
+Notes:
+
+- **Ollama** runs on your own machine — make sure the Ollama server is up (`ollama serve`) before connecting; no API key is asked for.
+- Keys for the cloud providers are encrypted with AES-256-GCM before they touch the database (see [Privacy](#privacy) and [Data](#data)).
+- Every provider above is OpenAI-compatible on the wire (`/models` + `/chat/completions`), which is what keeps the backend a single small client.
 
 ## Privacy
 

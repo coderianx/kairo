@@ -176,7 +176,8 @@ function registerBackendIpc() {
 	ipcMain.handle('kairo:connect-provider', async (_event, payload) => {
 		const { provider, apiKey } = payload || {};
 
-		if (!provider || !apiKey) {
+		// Ollama runs locally and connects without an API key.
+		if (!provider || (!apiKey && provider !== 'ollama')) {
 			return { ok: false, error: 'provider and api key are required' };
 		}
 

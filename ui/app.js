@@ -8,6 +8,7 @@ const continueButton = document.querySelector('.providers__continue');
 
 const heroLogo = document.querySelector('.provider-hero__logo');
 const heroName = document.querySelector('.provider-hero__name');
+const apiKeyLabel = document.querySelector('label[for="api-key"]');
 const apiKeyInput = document.querySelector('#api-key');
 const applyButton = document.querySelector('.connect__apply');
 const apiKeyError = document.querySelector('.connect__error');
@@ -17,6 +18,7 @@ const brandHome = document.querySelector('.sidebar__brand');
 const settingsGrid = document.querySelector('.settings__grid');
 const connectedList = document.querySelector('.connected');
 const settingsConnect = document.querySelector('.settings__connect');
+const settingsLabel = document.querySelector('label[for="settings-api-key"]');
 const settingsInput = document.querySelector('#settings-api-key');
 const settingsApply = document.querySelector('.settings-apply');
 const settingsError = document.querySelector('.settings-error');
@@ -48,6 +50,11 @@ let currentChatId = null;
 let currentProviderName = '';
 let currentModel = '';
 let modelChoices = [];
+
+// Local runtimes (Ollama) connect without an API key.
+function isLocalProvider(name) {
+	return name === 'ollama';
+}
 
 // Show exactly one app state at a time; no class means the welcome screen.
 function showScreen(state) {
@@ -117,7 +124,8 @@ providerCards.forEach((card) => {
 	});
 });
 
-// Show the API key screen for the selected provider.
+// Show the API key screen for the selected provider. Local providers
+// (Ollama) skip the key input and connect straight away.
 continueButton.addEventListener('click', () => {
 	if (!selectedCard) {
 		return;
@@ -134,9 +142,21 @@ continueButton.addEventListener('click', () => {
 		'.provider-card__name',
 	).textContent;
 
+	const local = isLocalProvider(selectedCard.dataset.provider);
+
+	// Local providers get an explanatory label instead of the key input.
+	apiKeyLabel.textContent = local ? 'No API key required' : 'API key';
+	apiKeyInput.hidden = local;
+	apiKeyError.hidden = true;
+
+	// Local providers can apply immediately; the others only once a key
+	// has been typed.
+	applyButton.hidden = !local;
+	applyButton.textContent = local ? 'Connect' : 'Apply';
+
 	showScreen('screen-apikey');
 
-	apiKeyInput.focus();
+	(local ? applyButton : apiKeyInput).focus();
 });
 
 // The apply button only appears once a key has been typed.
@@ -149,7 +169,9 @@ apiKeyInput.addEventListener('input', () => {
 applyButton.addEventListener('click', async () => {
 	const apiKey = apiKeyInput.value.trim();
 
-	if (!apiKey || !selectedCard || applyButton.disabled) {
+	const local = isLocalProvider(selectedCard?.dataset.provider);
+
+	if ((!apiKey && !local) || !selectedCard || applyButton.disabled) {
 		return;
 	}
 
@@ -330,7 +352,8 @@ brandHome.addEventListener('click', () => {
 	showScreen('screen-dashboard');
 });
 
-// Selecting a card in settings reveals the inline connect form.
+// Selecting a card in settings reveals the inline connect form. Local
+// providers (Ollama) skip the key input.
 settingsCards.forEach((card) => {
 	card.addEventListener('click', () => {
 		selectedSettingsCard = card;
@@ -342,10 +365,18 @@ settingsCards.forEach((card) => {
 			other.setAttribute('aria-pressed', String(selected));
 		});
 
-		settingsConnect.hidden = false;
+		const local = isLocalProvider(card.dataset.provider);
+
+		settingsLabel.textContent = local ? 'No API key required' : 'API key';
+		settingsInput.hidden = local;
 		settingsError.hidden = true;
 
-		settingsInput.focus();
+		settingsApply.hidden = !local;
+		settingsApply.textContent = local ? 'Connect' : 'Apply';
+
+		settingsConnect.hidden = false;
+
+		(local ? settingsApply : settingsInput).focus();
 	});
 });
 
@@ -359,7 +390,9 @@ settingsInput.addEventListener('input', () => {
 settingsApply.addEventListener('click', async () => {
 	const apiKey = settingsInput.value.trim();
 
-	if (!apiKey || !selectedSettingsCard || settingsApply.disabled) {
+	const local = isLocalProvider(selectedSettingsCard?.dataset.provider);
+
+	if ((!apiKey && !local) || !selectedSettingsCard || settingsApply.disabled) {
 		return;
 	}
 

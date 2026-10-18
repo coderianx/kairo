@@ -19,6 +19,8 @@
 
 	--brand-groq: #f55036;
 	--brand-openrouter: #94a3b8;
+	--brand-ollama: #e2e8f0;
+	--brand-gemini: #4285f4;
 
 	--radius-card: 12px;
 	--sidebar-width: 220px;
@@ -454,6 +456,14 @@ body.screen-chat .sidebar {
 
 .provider-card__logo--openrouter {
 	color: var(--brand-openrouter);
+}
+
+.provider-card__logo--ollama {
+	color: var(--brand-ollama);
+}
+
+.provider-card__logo--gemini {
+	color: var(--brand-gemini);
 }
 
 .provider-card__name {
