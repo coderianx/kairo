@@ -3,12 +3,14 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -43,6 +45,17 @@ func New(baseURL, apiKey string) *Client {
 type completionRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+	// Stream enables SSE token streaming; omitted for the plain request.
+	Stream bool `json:"stream,omitempty"`
+}
+
+// streamEvent is one OpenAI-compatible SSE data frame.
+type streamEvent struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+	} `json:"choices"`
 }
 
 type completionResponse struct {
@@ -98,6 +111,97 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	}
 
 	return models, nil
+}
+
+// StreamComplete sends the conversation history to the model and streams the
+// reply through onChunk as SSE deltas arrive, returning the full reply once
+// the stream ends.
+func (c *Client) StreamComplete(
+	ctx context.Context,
+	model string,
+	history []Message,
+	onChunk func(string),
+) (string, error) {
+	payload, err := json.Marshal(completionRequest{
+		Model:    model,
+		Messages: history,
+		Stream:   true,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("encode request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/chat/completions",
+		bytes.NewReader(payload),
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	res, err := c.http.Do(req)
+
+	if err != nil {
+		return "", fmt.Errorf("send request: %w", err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+
+		return "", fmt.Errorf("unexpected status %d: %s", res.StatusCode, string(body))
+	}
+
+	// SSE frames are line based; allow long data lines.
+	scanner := bufio.NewScanner(res.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var full strings.Builder
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+
+		if data == "[DONE]" {
+			break
+		}
+
+		var event streamEvent
+
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		if len(event.Choices) == 0 || event.Choices[0].Delta.Content == "" {
+			continue
+		}
+
+		full.WriteString(event.Choices[0].Delta.Content)
+
+		if onChunk != nil {
+			onChunk(event.Choices[0].Delta.Content)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("read stream: %w", err)
+	}
+
+	return full.String(), nil
 }
 
 // Complete sends the conversation history to the model and returns the

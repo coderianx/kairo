@@ -9,6 +9,8 @@ Kairo connects Groq, OpenRouter, Ollama, Gemini and any **OpenAI-compatible prov
 
 ## Features
 
+- **Streaming replies** — answers appear as they are generated, with a blinking caret; the full reply is saved on completion
+- **Markdown answers** — headings, lists, tables and copyable code blocks render locally; links open in your browser
 - **Searchable model picker** — your provider's full `/models` catalog in one popup, filtered as you type
 - **Conversation history** — chats are stored in local SQLite; every request sends the last **15 messages** to the model as context
 - **Encrypted keys** — API keys are sealed with **AES-256-GCM** and never stored in plain text

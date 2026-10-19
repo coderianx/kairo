@@ -42,3 +42,13 @@ type ListChatsRes struct {
 type ListMessagesRes struct {
 	Messages []Message `json:"messages"`
 }
+
+// StreamEvent is one SSE frame sent while a chat completion is streaming.
+type StreamEvent struct {
+	Type             string   `json:"type"` // chunk | done | error
+	ChatID           int64    `json:"chat_id,omitempty"`
+	Content          string   `json:"content,omitempty"`
+	UserMessage      *Message `json:"user_message,omitempty"`
+	AssistantMessage *Message `json:"assistant_message,omitempty"`
+	Error            string   `json:"error,omitempty"`
+}

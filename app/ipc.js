@@ -1,4 +1,4 @@
-const { ipcMain } = require('electron');
+const { ipcMain, shell, clipboard } = require('electron');
 
 const BACKEND_URL = 'http://127.0.0.1:8080';
 
@@ -142,7 +142,43 @@ function registerBackendIpc() {
 		}
 	});
 
-	ipcMain.handle('kairo:send-message', async (_event, payload) => {
+	// Consume an SSE body, invoking onEvent for every `data:` payload and
+	// returning when the stream ends with [DONE] (or the body does).
+	async function readSSE(body, onEvent) {
+		const decoder = new TextDecoder();
+
+		let buffer = '';
+
+		for await (const chunk of body) {
+			buffer += decoder.decode(chunk, { stream: true });
+
+			let index;
+
+			while ((index = buffer.indexOf('\n\n')) !== -1) {
+				const block = buffer.slice(0, index);
+
+				buffer = buffer.slice(index + 2);
+
+				for (const line of block.split('\n')) {
+					if (!line.startsWith('data:')) {
+						continue;
+					}
+
+					const data = line.slice(5).trim();
+
+					if (data === '[DONE]') {
+						return;
+					}
+
+					if (data) {
+						onEvent(data);
+					}
+				}
+			}
+		}
+	}
+
+	ipcMain.handle('kairo:send-message', async (event, payload) => {
 		const { chatId, provider, model, content } = payload || {};
 
 		if (!Number.isInteger(chatId) || chatId <= 0) {
@@ -154,20 +190,54 @@ function registerBackendIpc() {
 		}
 
 		try {
-			const res = await fetchJSON(`/chats/${chatId}/messages`, {
+			// The streaming endpoint keeps the request open and emits the
+			// reply as it is generated; chunks are forwarded to the renderer
+			// over IPC while the final result is the handler's return value.
+			const res = await fetch(`${BACKEND_URL}/chats/${chatId}/messages/stream`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ name: provider, model, content }),
 			});
 
-			if (res.status !== 201) {
+			if (!res.ok || !res.body) {
+				const data = await res.json().catch(() => ({}));
+
 				return {
 					ok: false,
-					error: res.data.error || 'Could not send the message.',
+					error: data.error || 'Could not send the message.',
 				};
 			}
 
-			return { ok: true, result: res.data };
+			let final = null;
+			let streamError = null;
+
+			await readSSE(res.body, (data) => {
+				let parsed;
+
+				try {
+					parsed = JSON.parse(data);
+				} catch {
+					return;
+				}
+
+				if (parsed.type === 'chunk' && parsed.content) {
+					event.sender.send('kairo:stream-chunk', parsed);
+				} else if (parsed.type === 'done') {
+					final = parsed;
+				} else if (parsed.type === 'error') {
+					streamError = parsed.error || 'Stream failed.';
+				}
+			});
+
+			if (streamError) {
+				return { ok: false, error: streamError };
+			}
+
+			if (!final || !final.assistant_message) {
+				return { ok: false, error: 'Stream ended unexpectedly.' };
+			}
+
+			return { ok: true, result: final };
 		} catch {
 			return { ok: false, error: 'Backend is not reachable.' };
 		}
@@ -194,6 +264,32 @@ function registerBackendIpc() {
 		} catch {
 			return { ok: false, error: 'Backend is not reachable.' };
 		}
+	});
+
+	// Open markdown links in the system browser, never inside the app window.
+	ipcMain.handle('kairo:open-external', async (_event, url) => {
+		if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+			return { ok: false, error: 'invalid url' };
+		}
+
+		try {
+			await shell.openExternal(url);
+
+			return { ok: true };
+		} catch {
+			return { ok: false, error: 'Could not open the link.' };
+		}
+	});
+
+	// Copy rendered message content (e.g. code blocks) to the clipboard.
+	ipcMain.handle('kairo:copy-text', async (_event, text) => {
+		if (typeof text !== 'string') {
+			return { ok: false, error: 'text is required' };
+		}
+
+		clipboard.writeText(text);
+
+		return { ok: true };
 	});
 }
 

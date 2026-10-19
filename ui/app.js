@@ -828,6 +828,28 @@ function clearChatMessages() {
 	chatBlank.hidden = false;
 }
 
+// Markdown rendering for chat messages. Output is always sanitized;
+// remote images are dropped (the CSP only allows local images) and style
+// attributes are stripped so message content cannot restyle the app.
+const MARKDOWN_OPTS = { gfm: true, breaks: true };
+
+function renderMarkdown(text) {
+	if (!window.marked || !window.DOMPurify) {
+		return null;
+	}
+
+	try {
+		const html = window.marked.parse(text, MARKDOWN_OPTS);
+
+		return window.DOMPurify.sanitize(html, {
+			FORBID_TAGS: ['img', 'style'],
+			FORBID_ATTR: ['style'],
+		});
+	} catch {
+		return null;
+	}
+}
+
 function appendCard(role, content) {
 	chatBlank.hidden = true;
 
@@ -849,7 +871,18 @@ function appendCard(role, content) {
 	const text = document.createElement('div');
 
 	text.className = 'msg__text';
-	text.textContent = content;
+
+	const html = renderMarkdown(content);
+
+	if (html !== null) {
+		// Reset the pre-wrap of .msg so markdown block layout works.
+		text.classList.add('msg__text--md');
+		text.innerHTML = html;
+		decorateCodeBlocks(text);
+	} else {
+		// Markdown stack unavailable: keep the plain, escaped rendering.
+		text.textContent = content;
+	}
 
 	message.appendChild(text);
 
@@ -858,6 +891,139 @@ function appendCard(role, content) {
 	chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 
 	return message;
+}
+
+// Give every fenced code block a copy button; the button is a no-drag
+// control so it stays clickable inside the frameless drag region.
+function decorateCodeBlocks(textEl) {
+	textEl.querySelectorAll('pre').forEach((pre) => {
+		const copy = document.createElement('button');
+
+		copy.type = 'button';
+		copy.className = 'msg__copy-code';
+		copy.textContent = 'Copy';
+		copy.setAttribute('aria-label', 'Copy code block');
+
+		copy.addEventListener('click', async () => {
+			const code = pre.querySelector('code');
+
+			try {
+				await window.kairo.copyText(code?.textContent ?? '');
+
+				copy.textContent = 'Copied!';
+				copy.classList.add('done');
+
+				setTimeout(() => {
+					copy.textContent = 'Copy';
+					copy.classList.remove('done');
+				}, 1500);
+			} catch {
+				copy.textContent = 'Failed';
+			}
+		});
+
+		pre.appendChild(copy);
+	});
+}
+
+// Markdown links open in the system browser via IPC; the renderer never
+// navigates (the window is a single-screen shell).
+chatMessagesEl.addEventListener('click', (event) => {
+	const link = event.target.closest('.msg__text a');
+
+	if (!link) {
+		return;
+	}
+
+	event.preventDefault();
+
+	const href = link.getAttribute('href') || '';
+
+	if (/^https?:\/\//i.test(href)) {
+		window.kairo.openExternal(href);
+	}
+});
+
+// ---- Streaming replies ----
+
+// Active reply stream while the send invoke is awaited; chunks arrive via
+// IPC events. null when idle.
+let stream = null;
+
+// Subscribe once; every chunk is appended to the currently streaming card.
+// Chunks from a stale or switched-away chat are ignored.
+window.kairo.onStreamChunk?.((payload) => {
+	if (!stream || payload.type !== 'chunk' || payload.chat_id !== stream.chatId) {
+		return;
+	}
+
+	stream.text += payload.content;
+
+	scheduleStreamRender();
+});
+
+// Re-render the streaming card at most every 50ms; markdown re-parsing on
+// every single token would be wasted work.
+function scheduleStreamRender() {
+	if (stream.timer) {
+		return;
+	}
+
+	stream.timer = setTimeout(() => {
+		stream.timer = null;
+
+		if (!stream) {
+			return;
+		}
+
+		const html = renderMarkdown(stream.text);
+
+		if (html !== null) {
+			stream.textEl.innerHTML = html;
+		}
+
+		chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+	}, 50);
+}
+
+// Finalize the streaming card with the canonical content returned by the
+// backend (what was actually saved), or undo the partial bubble when the
+// send failed. Switching chats mid-stream skips DOM updates: the message
+// lives in the database either way.
+async function finishStream(result) {
+	const state = stream;
+
+	stream = null;
+
+	clearTimeout(state?.timer);
+
+	const visible = state && state.chatId === currentChatId;
+
+	if (result.ok) {
+		const content = result.result.assistant_message.content;
+
+		if (visible) {
+			state.textEl.classList.remove('streaming');
+			state.textEl.innerHTML = renderMarkdown(content) ?? '';
+			decorateCodeBlocks(state.textEl);
+
+			chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+		}
+
+		// The backend derives the chat title from the first message.
+		await refreshChatList();
+	} else if (visible) {
+		// Nothing was saved; the partial bubble must not suggest otherwise.
+		state.textEl.closest('.msg').remove();
+
+		chatError.textContent =
+			result.error || 'Could not send the message.';
+		chatError.hidden = false;
+
+		// The user message is already in the database; reflect it in the
+		// sidebar.
+		await refreshChatList();
+	}
 }
 
 async function openChat(id) {
@@ -924,7 +1090,8 @@ newChatButton.addEventListener('click', async () => {
 	chatTextarea.focus();
 });
 
-// Send the composer message to the selected provider.
+// Send the composer message to the selected provider; the assistant reply
+// streams in chunk by chunk (SSE bridged over IPC).
 chatComposer.addEventListener('submit', async (event) => {
 	event.preventDefault();
 
@@ -966,6 +1133,18 @@ chatComposer.addEventListener('submit', async (event) => {
 	autogrowTextarea();
 	syncSendState();
 
+	// An empty assistant card that fills up as chunks arrive; the blinking
+	// caret comes from the streaming class.
+	const replyText = appendCard('assistant', '').querySelector('.msg__text');
+	replyText.classList.add('streaming');
+
+	stream = {
+		chatId: currentChatId,
+		textEl: replyText,
+		text: '',
+		timer: null,
+	};
+
 	let result;
 
 	try {
@@ -979,17 +1158,7 @@ chatComposer.addEventListener('submit', async (event) => {
 		result = { ok: false, error: 'Send failed. Try again.' };
 	}
 
-	if (result.ok) {
-		appendCard('assistant', result.result.assistant_message.content);
-
-		// The backend derives the chat title from the first message; refresh
-		// the sidebar so the name matches.
-		await refreshChatList();
-	} else {
-		chatError.textContent =
-			result.error || 'Could not send the message.';
-		chatError.hidden = false;
-	}
+	await finishStream(result);
 
 	chatTextarea.disabled = false;
 	chatTextarea.focus();

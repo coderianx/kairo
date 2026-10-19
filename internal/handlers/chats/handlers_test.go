@@ -90,6 +90,45 @@ func newFakeProvider(t *testing.T, name, model string) (*httptest.Server, *[]map
 	return server, requests
 }
 
+// newFakeStreamingProvider registers a provider whose base_url points at a
+// fake OpenAI-compatible SSE server that streams the given deltas. A
+// non-200 status makes it fail before streaming.
+func newFakeStreamingProvider(t *testing.T, name string, chunks []string, status int) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if status != http.StatusOK {
+			w.WriteHeader(status)
+
+			w.Write([]byte(`{"error": "fake provider failure"}`))
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+
+		for _, chunk := range chunks {
+			fmt.Fprintf(w, "data: {\"choices\": [{\"delta\": {\"content\": %q}}]}\n\n", chunk)
+		}
+
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+
+	t.Cleanup(server.Close)
+
+	encryptedKey, err := crypto.Encrypt("fake-api-key")
+
+	if err != nil {
+		t.Fatalf("encrypt key: %v", err)
+	}
+
+	if _, err := store.CreateProvider(name, server.URL, encryptedKey); err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+
+	return server
+}
+
 // getViaRouter performs a GET request through a real chi router.
 func getViaRouter(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -543,5 +582,195 @@ func TestSendMessageUnknownProvider(t *testing.T) {
 
 	if !strings.Contains(rec.Body.String(), "provider not connected") {
 		t.Fatalf("body = %s, want provider not connected", rec.Body.String())
+	}
+}
+
+// streamViaRouter posts a message to the streaming endpoint through a real
+// chi router so the URL param is populated the same way as in production.
+func streamViaRouter(t *testing.T, id, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	router := chi.NewRouter()
+
+	router.Post("/chats/{id}/messages/stream", StreamSendMessage)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/chats/"+id+"/messages/stream",
+		strings.NewReader(body),
+	)
+
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	return rec
+}
+
+// sseEvents extracts the data payloads of an SSE response body.
+func sseEvents(body string) []string {
+	var events []string
+
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		data := strings.TrimPrefix(line, "data: ")
+
+		if data != "[DONE]" {
+			events = append(events, data)
+		}
+	}
+
+	return events
+}
+
+func TestStreamSendMessage(t *testing.T) {
+	t.Setenv(crypto.KeyEnvVar, strings.Repeat("ab", 32))
+
+	setupTestDB(t)
+
+	// The fake provider streams three deltas.
+	newFakeStreamingProvider(t, "fake", []string{"Hel", "lo", "!"}, http.StatusOK)
+
+	_, _, err := store.CreateChat("Chat")
+
+	if err != nil {
+		t.Fatalf("create chat: %v", err)
+	}
+
+	rec := streamViaRouter(t, "1", `{"name": "fake", "model": "m1", "content": "hi"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	if ct := rec.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content type = %q, want text/event-stream", ct)
+	}
+
+	events := sseEvents(rec.Body.String())
+
+	if len(events) < 4 {
+		t.Fatalf("body must hold 3 chunks + done, got %d: %s", len(events), rec.Body.String())
+	}
+
+	var done struct {
+		Type        string `json:"type"`
+		ChatID      int64  `json:"chat_id"`
+		UserMessage struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"user_message"`
+		AssistantMessage struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"assistant_message"`
+	}
+
+	if err := json.Unmarshal([]byte(events[len(events)-1]), &done); err != nil {
+		t.Fatalf("decode done event: %v", err)
+	}
+
+	if done.Type != "done" {
+		t.Fatalf("last event type = %q, want done", done.Type)
+	}
+
+	if done.ChatID != 1 {
+		t.Fatalf("chat id = %d, want 1", done.ChatID)
+	}
+
+	if done.UserMessage.Content != "hi" {
+		t.Fatalf("user message = %q, want hi", done.UserMessage.Content)
+	}
+
+	if done.AssistantMessage.Content != "Hello!" {
+		t.Fatalf("assistant message = %q, want Hello!", done.AssistantMessage.Content)
+	}
+
+	// All chunk events must precede the done event and join into the reply.
+	var joined string
+
+	for _, event := range events[:len(events)-1] {
+		var chunk struct {
+			Type    string `json:"type"`
+			Content string `json:"content"`
+		}
+
+		if err := json.Unmarshal([]byte(event), &chunk); err != nil {
+			t.Fatalf("decode chunk event: %v", err)
+		}
+
+		if chunk.Type != "chunk" {
+			t.Fatalf("event type = %q, want chunk", chunk.Type)
+		}
+
+		joined += chunk.Content
+	}
+
+	if joined != "Hello!" {
+		t.Fatalf("joined chunks = %q, want Hello!", joined)
+	}
+
+	// Both messages must be persisted.
+	var count int
+
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM messages WHERE chat_id = 1").Scan(&count); err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+
+	if count != 2 {
+		t.Fatalf("message count = %d, want 2", count)
+	}
+}
+
+func TestStreamSendMessageProviderError(t *testing.T) {
+	t.Setenv(crypto.KeyEnvVar, strings.Repeat("ab", 32))
+
+	setupTestDB(t)
+
+	newFakeStreamingProvider(t, "fake", nil, http.StatusBadGateway)
+
+	_, _, err := store.CreateChat("Chat")
+
+	if err != nil {
+		t.Fatalf("create chat: %v", err)
+	}
+
+	rec := streamViaRouter(t, "1", `{"name": "fake", "model": "m1", "content": "hi"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (SSE headers are already sent)", rec.Code, http.StatusOK)
+	}
+
+	events := sseEvents(rec.Body.String())
+
+	if len(events) != 1 {
+		t.Fatalf("body must hold a single error event, got %d: %s", len(events), rec.Body.String())
+	}
+
+	var event struct {
+		Type  string `json:"type"`
+		Error string `json:"error"`
+	}
+
+	if err := json.Unmarshal([]byte(events[0]), &event); err != nil {
+		t.Fatalf("decode error event: %v", err)
+	}
+
+	if event.Type != "error" || event.Error != "provider request failed" {
+		t.Fatalf("event = %+v, want provider request failed", event)
+	}
+
+	// The user message is saved but the failed reply is not.
+	var count int
+
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM messages WHERE chat_id = 1").Scan(&count); err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("message count = %d, want 1", count)
 	}
 }

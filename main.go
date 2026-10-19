@@ -53,6 +53,7 @@ func main() {
 		r.Post("/", chats.CreateChat)
 		r.Get("/", chats.ListChats)
 		r.Post("/{id}/messages", chats.SendMessage)
+		r.Post("/{id}/messages/stream", chats.StreamSendMessage)
 		r.Get("/{id}/messages", chats.GetMessages)
 	})
 

@@ -3,6 +3,7 @@ package chats
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"kairo/internal/ai"
 	"kairo/internal/crypto"
@@ -213,10 +214,24 @@ func GetMessages(
 	})
 }
 
-func SendMessage(
+// preparedChat holds everything a completion needs after the request has
+// been validated and the user message has been saved.
+type preparedChat struct {
+	chatID        int64
+	req           models.ChatRequest
+	baseURL       string
+	apiKey        string
+	history       []ai.Message
+	userMessageID int64
+}
+
+// prepareChatRequest validates a send-message request, saves the user
+// message and loads the model history. On any failure the error response has
+// already been written and ok is false.
+func prepareChatRequest(
 	w http.ResponseWriter,
 	r *http.Request,
-) {
+) (preparedChat, bool) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if store.DB == nil {
@@ -226,7 +241,7 @@ func SendMessage(
 			"error": "database not connected",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	chatID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -238,7 +253,7 @@ func SendMessage(
 			"error": "invalid chat id",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	exists, err := store.ChatExists(chatID)
@@ -250,7 +265,7 @@ func SendMessage(
 			"error": "check chat failed",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	if !exists {
@@ -260,7 +275,7 @@ func SendMessage(
 			"error": "chat not found",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	var req models.ChatRequest
@@ -274,7 +289,7 @@ func SendMessage(
 			"error": "invalid request",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	if req.Provider == "" {
@@ -284,7 +299,7 @@ func SendMessage(
 			"error": "name is required",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	if req.Model == "" {
@@ -294,7 +309,7 @@ func SendMessage(
 			"error": "model is required",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	if req.Content == "" {
@@ -304,7 +319,7 @@ func SendMessage(
 			"error": "content is required",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	baseURL, encryptedAPIKey, err := store.GetProviderByName(req.Provider)
@@ -316,7 +331,7 @@ func SendMessage(
 			"error": "provider not connected",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	if err != nil {
@@ -326,7 +341,7 @@ func SendMessage(
 			"error": "get provider failed",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	apiKey, err := crypto.Decrypt(encryptedAPIKey)
@@ -338,7 +353,7 @@ func SendMessage(
 			"error": "decrypt api_key failed",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	userMessageID, err := store.CreateMessage(chatID, ai.RoleUser, req.Content)
@@ -350,7 +365,7 @@ func SendMessage(
 			"error": "save message failed",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	// The first message names the chat: the default placeholder title is
@@ -375,7 +390,7 @@ func SendMessage(
 			"error": "load history failed",
 		})
 
-		return
+		return preparedChat{}, false
 	}
 
 	messages := make([]ai.Message, 0, len(history))
@@ -387,7 +402,31 @@ func SendMessage(
 		})
 	}
 
-	reply, err := ai.New(baseURL, apiKey).Complete(r.Context(), req.Model, messages)
+	return preparedChat{
+		chatID:        chatID,
+		req:           req,
+		baseURL:       baseURL,
+		apiKey:        apiKey,
+		history:       messages,
+		userMessageID: userMessageID,
+	}, true
+}
+
+func SendMessage(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	prep, ok := prepareChatRequest(w, r)
+
+	if !ok {
+		return
+	}
+
+	reply, err := ai.New(prep.baseURL, prep.apiKey).Complete(
+		r.Context(),
+		prep.req.Model,
+		prep.history,
+	)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
@@ -399,7 +438,7 @@ func SendMessage(
 		return
 	}
 
-	assistantMessageID, err := store.CreateMessage(chatID, ai.RoleAssistant, reply)
+	assistantMessageID, err := store.CreateMessage(prep.chatID, ai.RoleAssistant, reply)
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -414,18 +453,126 @@ func SendMessage(
 	w.WriteHeader(http.StatusCreated)
 
 	json.NewEncoder(w).Encode(models.SendMessageRes{
-		ChatID: chatID,
+		ChatID: prep.chatID,
 		UserMessage: models.Message{
-			ID:      userMessageID,
-			ChatID:  chatID,
+			ID:      prep.userMessageID,
+			ChatID:  prep.chatID,
 			Role:    ai.RoleUser,
-			Content: req.Content,
+			Content: prep.req.Content,
 		},
 		AssistantMessage: models.Message{
 			ID:      assistantMessageID,
-			ChatID:  chatID,
+			ChatID:  prep.chatID,
 			Role:    ai.RoleAssistant,
 			Content: reply,
 		},
 	})
+}
+
+// writeSSE writes one data event and flushes it immediately.
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, payload models.StreamEvent) {
+	data, err := json.Marshal(payload)
+
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(w, "data: %s\n\n", data)
+
+	flusher.Flush()
+}
+
+// StreamSendMessage behaves like SendMessage but streams the assistant reply
+// to the client as SSE events while the model generates it:
+//
+//	data: {"type":"chunk","chat_id":1,"content":"..."}   (many)
+//	data: {"type":"done","chat_id":1,"user_message":{...},"assistant_message":{...}}
+//	data: [DONE]
+//
+// Failures before the first event keep plain JSON error responses; failures
+// mid-stream arrive as a {"type":"error"} event. Nothing partial is saved:
+// either the full reply lands in the database or none of it does.
+func StreamSendMessage(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	prep, ok := prepareChatRequest(w, r)
+
+	if !ok {
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "streaming unsupported",
+		})
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	var full strings.Builder
+
+	reply, err := ai.New(prep.baseURL, prep.apiKey).StreamComplete(
+		r.Context(),
+		prep.req.Model,
+		prep.history,
+		func(delta string) {
+			full.WriteString(delta)
+
+			writeSSE(w, flusher, models.StreamEvent{
+				Type:    "chunk",
+				ChatID:  prep.chatID,
+				Content: delta,
+			})
+		},
+	)
+
+	if err != nil {
+		writeSSE(w, flusher, models.StreamEvent{
+			Type:  "error",
+			Error: "provider request failed",
+		})
+
+		return
+	}
+
+	assistantMessageID, err := store.CreateMessage(prep.chatID, ai.RoleAssistant, reply)
+
+	if err != nil {
+		writeSSE(w, flusher, models.StreamEvent{
+			Type:  "error",
+			Error: "save message failed",
+		})
+
+		return
+	}
+
+	writeSSE(w, flusher, models.StreamEvent{
+		Type:   "done",
+		ChatID: prep.chatID,
+		UserMessage: &models.Message{
+			ID:      prep.userMessageID,
+			ChatID:  prep.chatID,
+			Role:    ai.RoleUser,
+			Content: prep.req.Content,
+		},
+		AssistantMessage: &models.Message{
+			ID:      assistantMessageID,
+			ChatID:  prep.chatID,
+			Role:    ai.RoleAssistant,
+			Content: reply,
+		},
+	})
+
+	fmt.Fprint(w, "data: [DONE]\n\n")
+
+	flusher.Flush()
 }
